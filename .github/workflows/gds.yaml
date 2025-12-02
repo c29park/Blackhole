@@ -13,6 +13,16 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate config JSON
+        run: python3 -m json.tool src/config.json > /tmp/config.json
+
+      - name: Run Verilator lint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+          mkdir -p runs/wokwi/manual-verilator-lint
+          verilator --lint-only -Wall src/project.v > runs/wokwi/manual-verilator-lint/verilator-lint.log || true
+
       - name: Build GDS
         uses: TinyTapeout/tt-gds-action@ttsky25b
         with:
