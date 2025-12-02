@@ -22,13 +22,20 @@ module tb ();
   wire [7:0] uo_out;
   wire [7:0] uio_out;
   wire [7:0] uio_oe;
+  // Expose internal VGA timing signals for cocotb access
+  // Keep these signals from being optimized away so cocotb can observe them
+  (* keep *) wire hsync;
+  (* keep *) wire vsync;
+  (* keep *) wire display_on;
+  (* keep *) wire [9:0] hpos;
+  (* keep *) wire [9:0] vpos;
 `ifdef GL_TEST
   wire VPWR = 1'b1;
   wire VGND = 1'b0;
 `endif
 
   // Replace tt_um_example with your module name:
-  tt_um_example user_project (
+  tt_um_vga_example user_project (
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST
@@ -43,7 +50,12 @@ module tb ();
       .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
       .ena    (ena),      // enable - goes high when design is selected
       .clk    (clk),      // clock
-      .rst_n  (rst_n)     // not reset
+      .rst_n  (rst_n),    // not reset
+      .hsync_out(hsync),
+      .vsync_out(vsync),
+      .activevideo_out(display_on),
+      .hpos_out(hpos),
+      .vpos_out(vpos)
   );
 
 endmodule
