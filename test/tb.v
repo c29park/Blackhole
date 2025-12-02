@@ -50,14 +50,12 @@ module tb ();
       .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
       .ena    (ena),      // enable - goes high when design is selected
       .clk    (clk),      // clock
-      .rst_n  (rst_n)     // not reset
+      .rst_n  (rst_n),    // not reset
+      .hsync_out(hsync),
+      .vsync_out(vsync),
+      .activevideo_out(display_on),
+      .hpos_out(hpos),
+      .vpos_out(vpos)
   );
-
-  // Tie out internal signals so the testbench can observe them
-  assign hsync      = user_project.hsync;
-  assign vsync      = user_project.vsync;
-  assign display_on = user_project.activevideo;
-  assign hpos       = user_project.x_px;
-  assign vpos       = user_project.y_px;
 
 endmodule

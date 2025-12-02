@@ -12,7 +12,13 @@ module tt_um_vga_example(
   output wire [7:0] uio_oe,   // unused
   input  wire       ena,      // unused
   input  wire       clk,      // ~25 MHz pixel clock
-  input  wire       rst_n     // active-low reset
+  input  wire       rst_n,    // active-low reset
+  // Debug/visibility ports for simulation
+  output wire       hsync_out,
+  output wire       vsync_out,
+  output wire       activevideo_out,
+  output wire [9:0] hpos_out,
+  output wire [9:0] vpos_out
 );
 
   // -------------------------------------------------------
@@ -39,6 +45,13 @@ module tt_um_vga_example(
   assign uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
   assign uio_out = 8'h00;
   assign uio_oe  = 8'h00;
+
+  // Export internal timing signals for testbench visibility
+  assign hsync_out       = hsync;
+  assign vsync_out       = vsync;
+  assign activevideo_out = activevideo;
+  assign hpos_out        = x_px;
+  assign vpos_out        = y_px;
 
   // -------------------------------------------------------
   // Animation Timer
@@ -218,7 +231,12 @@ module tt_um_example(
     .uio_oe (uio_oe),
     .ena    (ena),
     .clk    (clk),
-    .rst_n  (rst_n)
+    .rst_n  (rst_n),
+    .hsync_out(),
+    .vsync_out(),
+    .activevideo_out(),
+    .hpos_out(),
+    .vpos_out()
   );
 
 endmodule
