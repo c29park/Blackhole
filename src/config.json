@@ -19,6 +19,9 @@
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
   "CLOCK_PERIOD": 20,
 
+  // Provide the asynchronous reset port name so timing constraints can bind correctly
+  "RESET_PORT": "rst_n",
+
   "//": "Override the driving cell used during synthesis to ensure the library pin exists.",
   "SYNTH_DRIVING_CELL": "sky130_fd_sc_hd__inv_4",
   "SYNTH_DRIVING_CELL_PIN": "Y",
