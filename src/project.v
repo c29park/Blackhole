@@ -75,7 +75,6 @@ module tt_um_vga_example(
   // -------------------------------------------------------
   // Center screen (320, 240)
   wire signed [10:0] dx = $signed({1'b0, x_px}) - 11'sd320;
-  wire signed [10:1] _unused_dx; // avoid lint warnings if needed
   wire signed [10:0] dy = $signed({1'b0, y_px}) - 11'sd240;
 
   // Squared Distances
@@ -153,11 +152,11 @@ module tt_um_vga_example(
   
   // Textures (Ring patterns)
   // Use frame_cnt[7:0] to keep original ring flow speed
-  wire [7:0] belt_tex_val = (r2_flat[15:8]) - frame_cnt[7:0];
+  wire [4:0] belt_tex_val = (r2_flat[15:8] - frame_cnt[7:0])[4:0];
   wire       belt_gap     = belt_tex_val[4];
   wire       belt_yellow  = belt_tex_val[2]; 
-  
-  wire [7:0] halo_tex_val = (r2_circ[13:6]) - frame_cnt[7:0];
+
+  wire [4:0] halo_tex_val = (r2_circ[13:6] - frame_cnt[7:0])[4:0];
   wire       halo_gap     = halo_tex_val[4];
   wire       halo_yellow  = halo_tex_val[2];
 
