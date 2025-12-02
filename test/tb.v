@@ -23,11 +23,12 @@ module tb ();
   wire [7:0] uio_out;
   wire [7:0] uio_oe;
   // Expose internal VGA timing signals for cocotb access
-  wire hsync;
-  wire vsync;
-  wire display_on;
-  wire [9:0] hpos;
-  wire [9:0] vpos;
+  // Keep these signals from being optimized away so cocotb can observe them
+  (* keep *) wire hsync;
+  (* keep *) wire vsync;
+  (* keep *) wire display_on;
+  (* keep *) wire [9:0] hpos;
+  (* keep *) wire [9:0] vpos;
 `ifdef GL_TEST
   wire VPWR = 1'b1;
   wire VGND = 1'b0;
