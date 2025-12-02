@@ -22,6 +22,12 @@ module tb ();
   wire [7:0] uo_out;
   wire [7:0] uio_out;
   wire [7:0] uio_oe;
+  // Expose internal VGA timing signals for cocotb access
+  wire hsync;
+  wire vsync;
+  wire display_on;
+  wire [9:0] hpos;
+  wire [9:0] vpos;
 `ifdef GL_TEST
   wire VPWR = 1'b1;
   wire VGND = 1'b0;
@@ -45,5 +51,12 @@ module tb ();
       .clk    (clk),      // clock
       .rst_n  (rst_n)     // not reset
   );
+
+  // Tie out internal signals so the testbench can observe them
+  assign hsync      = user_project.hsync;
+  assign vsync      = user_project.vsync;
+  assign display_on = user_project.activevideo;
+  assign hpos       = user_project.x_px;
+  assign vpos       = user_project.y_px;
 
 endmodule
