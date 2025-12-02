@@ -75,6 +75,7 @@ module tt_um_vga_example(
   // -------------------------------------------------------
   // Center screen (320, 240)
   wire signed [10:0] dx = $signed({1'b0, x_px}) - 11'sd320;
+  wire signed [10:1] _unused_dx; // avoid lint warnings if needed
   wire signed [10:0] dy = $signed({1'b0, y_px}) - 11'sd240;
 
   // Squared Distances
@@ -86,6 +87,8 @@ module tt_um_vga_example(
   wire [21:0] r2_circ = dx_sq + dy_sq;
   // Flat Elliptical (for Belt) - y squashed by 4x (shift left 4 = mult 16)
   wire [21:0] r2_flat = dx_sq + (dy_sq << 4);
+
+  assign _unused_dx = dx[10:1];
 
   // -------------------------------------------------------
   // Constants
@@ -140,9 +143,9 @@ module tt_um_vga_example(
   wire star_here   = ( star_lfsr[0]
                      & ~star_lfsr[1]
                      & ~star_lfsr[2]
-                     & ~star_lfsr[3] 
-                     & star_lfsr[4]);   // ≈ 1/16
-  wire star_bright = star_lfsr[5];       // brightness variation
+                     & ~star_lfsr[3]
+                     );   // ≈ 1/16
+  wire star_bright = star_lfsr[4];       // brightness variation
 
   // -------------------------------------------------------
   // Rendering Logic
@@ -225,7 +228,7 @@ module tt_um_vga_example(
   end
 
   // List all unused inputs to prevent warnings
-  wire _unused = &{ui_in, uio_in, ena, 1'b0};
+  wire _unused = &{ui_in, uio_in, ena, _unused_dx, 1'b0};
 
 endmodule
 
