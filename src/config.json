@@ -16,7 +16,7 @@
   "PL_TARGET_DENSITY_PCT": 90,
 
   "//": "Override the default PI driving cell to one that is known to exist in the HD library.",
-  "SYNTH_DRIVING_CELL": "sky130_fd_sc_hd__inv_1",
+  "SYNTH_DRIVING_CELL": "sky130_fd_sc_hd__inv_2",
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
