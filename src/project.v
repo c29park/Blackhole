@@ -253,6 +253,11 @@ module hvsync_generator (
     // visible area flag
     assign display_on = (hpos < H_DISPLAY) && (vpos < V_DISPLAY);
 
+    wire end_of_line = (hpos == H_TOTAL - 1);
+    wire end_of_frame = end_of_line && (vpos == V_TOTAL - 1);
+    wire [9:0] hpos_next = end_of_line ? 10'd0 : hpos + 10'd1;
+    wire [9:0] vpos_next = end_of_line ? (end_of_frame ? 10'd0 : vpos + 10'd1) : vpos;
+
     always @(posedge clk) begin
         if (reset) begin
             hpos  <= 10'd0;
@@ -260,28 +265,19 @@ module hvsync_generator (
             hsync <= 1'b1;
             vsync <= 1'b1;
         end else begin
-            // horizontal counter
-            if (hpos == H_TOTAL - 1) begin
-                hpos <= 10'd0;
-                // vertical counter
-                if (vpos == V_TOTAL - 1)
-                    vpos <= 10'd0;
-                else
-                    vpos <= vpos + 10'd1;
-            end else begin
-                hpos <= hpos + 10'd1;
-            end
+            hpos  <= hpos_next;
+            vpos  <= vpos_next;
 
-            // generate HSYNC (active low)
-            if (hpos >= H_DISPLAY + H_FRONT &&
-                hpos <  H_DISPLAY + H_FRONT + H_SYNC)
+            // generate HSYNC (active low) using the next pixel position
+            if (hpos_next >= H_DISPLAY + H_FRONT &&
+                hpos_next <  H_DISPLAY + H_FRONT + H_SYNC)
                 hsync <= 1'b0;
             else
                 hsync <= 1'b1;
 
-            // generate VSYNC (active low)
-            if (vpos >= V_DISPLAY + V_FRONT &&
-                vpos <  V_DISPLAY + V_FRONT + V_SYNC)
+            // generate VSYNC (active low) using the next line position
+            if (vpos_next >= V_DISPLAY + V_FRONT &&
+                vpos_next <  V_DISPLAY + V_FRONT + V_SYNC)
                 vsync <= 1'b0;
             else
                 vsync <= 1'b1;
