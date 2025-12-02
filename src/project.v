@@ -193,3 +193,70 @@ module tt_um_vga_example(
   end
 
 endmodule
+
+// -------------------------------------------------------
+// VGA Timing Generator
+// -------------------------------------------------------
+
+module hvsync_generator (
+    input  wire       clk,        // ~25 MHz pixel clock
+    input  wire       reset,      // active-high reset
+    output reg        hsync,
+    output reg        vsync,
+    output wire       display_on, // high when (x,y) is visible
+    output reg [9:0]  hpos,       // 0..639 visible
+    output reg [9:0]  vpos        // 0..479 visible
+);
+
+    // 640x480 @ 60Hz timing (25.175 MHz nominal)
+    localparam H_DISPLAY = 640;
+    localparam H_FRONT   = 16;
+    localparam H_SYNC    = 96;
+    localparam H_BACK    = 48;
+    localparam H_TOTAL   = H_DISPLAY + H_FRONT + H_SYNC + H_BACK; // 800
+
+    localparam V_DISPLAY = 480;
+    localparam V_FRONT   = 10;
+    localparam V_SYNC    = 2;
+    localparam V_BACK    = 33;
+    localparam V_TOTAL   = V_DISPLAY + V_FRONT + V_SYNC + V_BACK; // 525
+
+    // visible area flag
+    assign display_on = (hpos < H_DISPLAY) && (vpos < V_DISPLAY);
+
+    always @(posedge clk) begin
+        if (reset) begin
+            hpos  <= 10'd0;
+            vpos  <= 10'd0;
+            hsync <= 1'b1;
+            vsync <= 1'b1;
+        end else begin
+            // horizontal counter
+            if (hpos == H_TOTAL - 1) begin
+                hpos <= 10'd0;
+                // vertical counter
+                if (vpos == V_TOTAL - 1)
+                    vpos <= 10'd0;
+                else
+                    vpos <= vpos + 10'd1;
+            end else begin
+                hpos <= hpos + 10'd1;
+            end
+
+            // generate HSYNC (active low)
+            if (hpos >= H_DISPLAY + H_FRONT &&
+                hpos <  H_DISPLAY + H_FRONT + H_SYNC)
+                hsync <= 1'b0;
+            else
+                hsync <= 1'b1;
+
+            // generate VSYNC (active low)
+            if (vpos >= V_DISPLAY + V_FRONT &&
+                vpos <  V_DISPLAY + V_FRONT + V_SYNC)
+                vsync <= 1'b0;
+            else
+                vsync <= 1'b1;
+        end
+    end
+
+endmodule
