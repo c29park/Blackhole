@@ -40,28 +40,28 @@ module tb ();
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST
-      .VPWR(VPWR),
-      .VGND(VGND),
+      .VPWR       (VPWR),
+      .VGND       (VGND),
 `endif
 
-      .ui_in  (ui_in),    // Dedicated inputs
-      .uo_out (uo_out),   // Dedicated outputs
-      .uio_in (uio_in),   // IOs: Input path
-      .uio_out(uio_out),  // IOs: Output path
-      .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
-      .ena    (ena),      // enable - goes high when design is selected
-      .clk    (clk),      // clock
-      .rst_n  (rst_n)     // not reset
+      .ui_in      (ui_in),     // Dedicated inputs
+      .uo_out     (uo_out),    // Dedicated outputs
+      .uio_in     (uio_in),    // IOs: Input path
+      .uio_out    (uio_out),   // IOs: Output path
+      .uio_oe     (uio_oe),    // IOs: Enable path (active high: 0=input, 1=output)
+      .ena        (ena),       // enable - goes high when design is selected
+      .clk        (clk),       // clock
+      .rst_n      (rst_n),     // not reset
+      // Geometry/timing visibility for cocotb
+      .activevideo(activevideo),
+      .x_px       (x_px),
+      .y_px       (y_px),
+      .frame_cnt  (frame_cnt)
   );
 
   // Extract VGA timing signals from uo_out port
   // uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]}
-  assign hsync       = uo_out[7];
-  assign vsync       = uo_out[3];
-  // Pull internal geometry signals directly from the DUT for cocotb checks
-  assign activevideo = user_project.activevideo;
-  assign x_px        = user_project.x_px;
-  assign y_px        = user_project.y_px;
-  assign frame_cnt   = user_project.frame_cnt;
+  assign hsync = uo_out[7];
+  assign vsync = uo_out[3];
 
 endmodule
