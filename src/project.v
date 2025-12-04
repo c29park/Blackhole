@@ -12,7 +12,13 @@ module tt_um_vga_example(
   output wire [7:0] uio_oe,   // unused
   input  wire       ena,      // unused
   input  wire       clk,      // ~25 MHz pixel clock
-  input  wire       rst_n     // active-low reset
+  input  wire       rst_n,    // active-low reset
+
+  // Exposed for cocotb testbench visibility
+  output wire       activevideo,
+  output wire [9:0] x_px,
+  output wire [9:0] y_px,
+  output reg  [15:0] frame_cnt
 );
 
   // -------------------------------------------------------
@@ -20,9 +26,6 @@ module tt_um_vga_example(
   // -------------------------------------------------------
   wire hsync;
   wire vsync;
-  wire activevideo;
-  wire [9:0] x_px;
-  wire [9:0] y_px;
 
   hvsync_generator hvsync_gen(
     .clk        (clk),
@@ -44,7 +47,6 @@ module tt_um_vga_example(
   // Animation Timer
   // -------------------------------------------------------
   // Extended to 16 bits
-  reg [15:0] frame_cnt;
   reg vsync_prev;
   
   always @(posedge clk) begin
