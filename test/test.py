@@ -82,8 +82,8 @@ async def test_vsync_timing(dut):
     # After VSYNC window, VSYNC should return high
     assert dut.vsync.value == 1
 
-    # Confirm counters continue to advance in the active display region of the next frame
-    await ClockCycles(dut.clk, H_TOTAL * (V_BACK + 1))
+    # Confirm counters continue to advance into the next frame's active region
+    await ClockCycles(dut.clk, H_TOTAL * V_BACK)
     assert int(dut.vpos.value) == 0
     assert int(dut.hpos.value) == 0
     assert dut.display_on.value == 1
