@@ -53,11 +53,14 @@ module tb ();
       .rst_n  (rst_n)     // not reset
   );
 
-  // Tie out internal signals so the testbench can observe them
-  assign hsync      = user_project.hsync;
-  assign vsync      = user_project.vsync;
-  assign display_on = user_project.activevideo;
-  assign hpos       = user_project.x_px;
-  assign vpos       = user_project.y_px;
+  // Extract VGA timing signals from uo_out port
+  // uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]}
+  assign hsync      = uo_out[7];
+  assign vsync      = uo_out[3];
+  // Note: activevideo, x_px, and y_px are not exposed as ports
+  // Set to 0 or remove from test.py if not needed
+  assign display_on = 1'b0;  // Not available from DUT ports
+  assign hpos       = 10'b0;  // Not available from DUT ports
+  assign vpos       = 10'b0;  // Not available from DUT ports
 
 endmodule
