@@ -10,27 +10,27 @@ from cocotb.triggers import ClockCycles
 # ---------------------------------------------------------------------------
 
 H_DISPLAY = 640
-H_FRONT = 16
-H_SYNC = 96
-H_BACK = 48
-H_TOTAL = H_DISPLAY + H_FRONT + H_SYNC + H_BACK  # 800
+H_FRONT   = 16
+H_SYNC    = 96
+H_BACK    = 48
+H_TOTAL   = H_DISPLAY + H_FRONT + H_SYNC + H_BACK  # 800
 
 V_DISPLAY = 480
-V_FRONT = 10
-V_SYNC = 2
-V_BACK = 33
-V_TOTAL = V_DISPLAY + V_FRONT + V_SYNC + V_BACK  # 525
+V_FRONT   = 10
+V_SYNC    = 2
+V_BACK    = 33
+V_TOTAL   = V_DISPLAY + V_FRONT + V_SYNC + V_BACK  # 525
 
-# Geometry thresholds (match Verilog localparams)
-SHADOW_R2 = 7225      # r=85
-BELT_IN_R2 = 10000
+# Geometry thresholds (must match Verilog localparams)
+SHADOW_R2   = 7225      # r=85
+BELT_IN_R2  = 10000
 BELT_OUT_R2 = 85000
-HALO_IN_R2 = 5000
+HALO_IN_R2  = 5000
 HALO_OUT_R2 = 22000
 
 
 async def initialize_dut(dut):
-    """Drive default values and apply reset."""
+    """Drive default values and apply reset (for timing tests)."""
     dut.ena.value = 1
     dut.ui_in.value = 0
     dut.uio_in.value = 0
@@ -242,24 +242,35 @@ def golden_pixel_color(x_px: int, y_px: int, frame_cnt: int):
 
 
 # ---------------------------------------------------------------------------
-# Strong geometry test: compare every visible pixel against golden model
+# Strong geometry test: full-frame compare using local x/y counters
 # ---------------------------------------------------------------------------
 
 @cocotb.test()
 async def test_blackhole_geometry_full_frame(dut):
     """
     Strong geometry test:
-    For every visible pixel in a frame, recompute the expected RGB
-    in Python and compare to the hardware output.
+    Recreate the same (hpos, vpos) counters in Python, in lockstep with the
+    clock and reset, and for every visible pixel compare hardware RGB against
+    the golden model RGB.
     """
     clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
     cocotb.start_soon(clock.start())
 
-    await initialize_dut(dut)
+    # Manual reset here so we can keep our local x/y counters in sync
+    dut.ena.value = 1
+    dut.ui_in.value = 0
+    dut.uio_in.value = 0
+    dut.rst_n.value = 0
 
-    # Let things run a bit so frame_cnt and the pipeline settle
-    await ClockCycles(dut.clk, H_TOTAL * 2)
+    # Local copies of hpos/vpos logic (same as in hvsync_generator)
+    sim_x = 0
+    sim_y = 0
 
+    # Hold reset for 2 cycles (design hpos/vpos stay at 0)
+    await ClockCycles(dut.clk, 2)
+    dut.rst_n.value = 1  # release reset
+
+    # Now run through one full frame worth of cycles
     num_cycles = H_TOTAL * V_TOTAL
 
     mismatches = 0
@@ -268,28 +279,34 @@ async def test_blackhole_geometry_full_frame(dut):
     for _ in range(num_cycles):
         await ClockCycles(dut.clk, 1)
 
-        # Use top-level signals (wires) from tt_um_vga_example
-        x = int(dut.x_px.value)
-        y = int(dut.y_px.value)
-        active = int(dut.activevideo.value)
+        # Update our local (x,y) counters in the same way as hvsync_generator
+        if sim_x == H_TOTAL - 1:
+            sim_x = 0
+            if sim_y == V_TOTAL - 1:
+                sim_y = 0
+            else:
+                sim_y += 1
+        else:
+            sim_x += 1
 
-        if not active:
+        # Only check visible pixels (display_on region)
+        if sim_x >= H_DISPLAY or sim_y >= V_DISPLAY:
             continue
 
         frame_cnt = int(dut.frame_cnt.value) & 0xFFFF
 
-        # Hardware RGB from packed uo_out
+        # Hardware RGB
         hw_R, hw_G, hw_B = decode_rgb_from_uo(int(dut.uo_out.value))
 
         # Expected RGB from golden model
-        exp_R, exp_G, exp_B = golden_pixel_color(x, y, frame_cnt)
+        exp_R, exp_G, exp_B = golden_pixel_color(sim_x, sim_y, frame_cnt)
 
         checked += 1
         if (hw_R, hw_G, hw_B) != (exp_R, exp_G, exp_B):
             mismatches += 1
             if mismatches <= 10:
                 dut._log.error(
-                    f"Pixel mismatch at (x={x}, y={y}), frame_cnt={frame_cnt}: "
+                    f"Pixel mismatch at (x={sim_x}, y={sim_y}), frame_cnt={frame_cnt}: "
                     f"HW R,G,B = {hw_R},{hw_G},{hw_B} vs "
                     f"EXP R,G,B = {exp_R},{exp_G},{exp_B}"
                 )
