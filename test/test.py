@@ -6,35 +6,83 @@ from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles
 
 
-@cocotb.test()
-async def test_project(dut):
-    dut._log.info("Start")
+H_DISPLAY = 640
+H_FRONT = 16
+H_SYNC = 96
+H_BACK = 48
+H_TOTAL = H_DISPLAY + H_FRONT + H_SYNC + H_BACK  # 800
 
-    # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, unit="us")
-    cocotb.start_soon(clock.start())
+V_DISPLAY = 480
+V_FRONT = 10
+V_SYNC = 2
+V_BACK = 33
+V_TOTAL = V_DISPLAY + V_FRONT + V_SYNC + V_BACK  # 525
 
-    # Reset
-    dut._log.info("Reset")
+
+async def initialize_dut(dut):
+    """Drive default values and apply reset."""
     dut.ena.value = 1
     dut.ui_in.value = 0
     dut.uio_in.value = 0
     dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 10)
+    await ClockCycles(dut.clk, 2)
     dut.rst_n.value = 1
-
-    dut._log.info("Test project behavior")
-
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
-
-    # Wait for one clock cycle to see the output values
     await ClockCycles(dut.clk, 1)
 
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
 
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+@cocotb.test()
+async def test_hsync_timing(dut):
+    """Verify HSYNC pulse width and period."""
+    clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
+    cocotb.start_soon(clock.start())
+
+    await initialize_dut(dut)
+
+    # Initial state after reset release
+    assert dut.hsync.value == 1
+    assert dut.vsync.value == 1
+    assert dut.uio_out.value == 0
+    assert dut.uio_oe.value == 0
+
+    # Count HSYNC low pulses to verify timing
+    hsync_low_count = 0
+    hsync_high_count = 0
+    
+    # One full line worth of cycles to check HSYNC window
+    for _ in range(H_TOTAL):
+        await ClockCycles(dut.clk, 1)
+        if dut.hsync.value == 0:
+            hsync_low_count += 1
+        else:
+            hsync_high_count += 1
+
+    # HSYNC should be low for H_SYNC cycles
+    assert hsync_low_count == H_SYNC, f"Expected {H_SYNC} low cycles, got {hsync_low_count}"
+    # HSYNC should be high for the rest
+    assert hsync_high_count == H_TOTAL - H_SYNC
+
+
+@cocotb.test()
+async def test_vsync_timing(dut):
+    """Verify VSYNC pulse width at the expected line numbers."""
+    clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
+    cocotb.start_soon(clock.start())
+
+    await initialize_dut(dut)
+
+    # Advance to the start of the VSYNC pulse region
+    lines_until_vsync = V_DISPLAY + V_FRONT
+    await ClockCycles(dut.clk, H_TOTAL * lines_until_vsync)
+
+    # VSYNC should assert low for V_SYNC lines
+    for expected_line in range(V_SYNC):
+        assert dut.vsync.value == 0, f"VSYNC not low at line {expected_line}"
+        await ClockCycles(dut.clk, H_TOTAL)
+
+    # After VSYNC window, VSYNC should return high
+    assert dut.vsync.value == 1
+
+    # Advance through the back porch to verify frame completion
+    await ClockCycles(dut.clk, H_TOTAL * V_BACK)
+    # VSYNC should still be high after back porch
+    assert dut.vsync.value == 1

@@ -22,13 +22,20 @@ module tb ();
   wire [7:0] uo_out;
   wire [7:0] uio_out;
   wire [7:0] uio_oe;
+  // Expose internal VGA timing signals for cocotb access
+  // Keep these signals from being optimized away so cocotb can observe them
+  (* keep *) wire hsync;
+  (* keep *) wire vsync;
+  (* keep *) wire display_on;
+  (* keep *) wire [9:0] hpos;
+  (* keep *) wire [9:0] vpos;
 `ifdef GL_TEST
   wire VPWR = 1'b1;
   wire VGND = 1'b0;
 `endif
 
   // Replace tt_um_example with your module name:
-  tt_um_example user_project (
+  tt_um_vga_example user_project (
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST
@@ -45,5 +52,15 @@ module tb ();
       .clk    (clk),      // clock
       .rst_n  (rst_n)     // not reset
   );
+
+  // Extract VGA timing signals from uo_out port
+  // uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]}
+  assign hsync      = uo_out[7];
+  assign vsync      = uo_out[3];
+  // Note: activevideo, x_px, and y_px are not exposed as ports
+  // Set to 0 or remove from test.py if not needed
+  assign display_on = 1'b0;  // Not available from DUT ports
+  assign hpos       = 10'b0;  // Not available from DUT ports
+  assign vpos       = 10'b0;  // Not available from DUT ports
 
 endmodule
