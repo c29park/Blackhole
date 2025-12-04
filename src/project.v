@@ -12,27 +12,39 @@ module tt_um_vga_example(
   output wire [7:0] uio_oe,   // unused
   input  wire       ena,      // unused
   input  wire       clk,      // ~25 MHz pixel clock
-  input  wire       rst_n     // active-low reset
+  input  wire       rst_n,    // active-low reset
+  // Debug signals for testbench visibility
+  output wire       hsync,
+  output wire       vsync,
+  output wire       activevideo,
+  output wire [9:0] x_px,
+  output wire [9:0] y_px
 );
 
   // -------------------------------------------------------
   // VGA signals
   // -------------------------------------------------------
-  wire hsync;
-  wire vsync;
-  wire activevideo;
-  wire [9:0] x_px;
-  wire [9:0] y_px;
+  wire       vga_hsync;
+  wire       vga_vsync;
+  wire       vga_activevideo;
+  wire [9:0] vga_x_px;
+  wire [9:0] vga_y_px;
 
   hvsync_generator hvsync_gen(
     .clk        (clk),
     .reset      (~rst_n),
-    .hsync      (hsync),
-    .vsync      (vsync),
-    .display_on (activevideo),
-    .hpos       (x_px),
-    .vpos       (y_px)
+    .hsync      (vga_hsync),
+    .vsync      (vga_vsync),
+    .display_on (vga_activevideo),
+    .hpos       (vga_x_px),
+    .vpos       (vga_y_px)
   );
+
+  assign hsync       = vga_hsync;
+  assign vsync       = vga_vsync;
+  assign activevideo = vga_activevideo;
+  assign x_px        = vga_x_px;
+  assign y_px        = vga_y_px;
 
   // TinyVGA PMOD mapping
   reg [1:0] R, G, B;
@@ -203,7 +215,12 @@ module tt_um_example(
   output wire [7:0] uio_oe,
   input  wire       ena,
   input  wire       clk,
-  input  wire       rst_n
+  input  wire       rst_n,
+  output wire       hsync,
+  output wire       vsync,
+  output wire       activevideo,
+  output wire [9:0] x_px,
+  output wire [9:0] y_px
 `ifdef GL_TEST
  ,input  wire       VPWR,
   input  wire       VGND
@@ -218,7 +235,12 @@ module tt_um_example(
     .uio_oe (uio_oe),
     .ena    (ena),
     .clk    (clk),
-    .rst_n  (rst_n)
+    .rst_n  (rst_n),
+    .hsync  (hsync),
+    .vsync  (vsync),
+    .activevideo(activevideo),
+    .x_px   (x_px),
+    .y_px   (y_px)
   );
 
 endmodule
