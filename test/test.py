@@ -5,6 +5,9 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles
 
+# ---------------------------------------------------------------------------
+# VGA timing constants
+# ---------------------------------------------------------------------------
 
 H_DISPLAY = 640
 H_FRONT = 16
@@ -18,6 +21,13 @@ V_SYNC = 2
 V_BACK = 33
 V_TOTAL = V_DISPLAY + V_FRONT + V_SYNC + V_BACK  # 525
 
+# Geometry thresholds (match Verilog localparams)
+SHADOW_R2 = 7225      # r=85
+BELT_IN_R2 = 10000
+BELT_OUT_R2 = 85000
+HALO_IN_R2 = 5000
+HALO_OUT_R2 = 22000
+
 
 async def initialize_dut(dut):
     """Drive default values and apply reset."""
@@ -29,6 +39,10 @@ async def initialize_dut(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 1)
 
+
+# ---------------------------------------------------------------------------
+# Existing timing tests
+# ---------------------------------------------------------------------------
 
 @cocotb.test()
 async def test_hsync_timing(dut):
@@ -86,3 +100,198 @@ async def test_vsync_timing(dut):
     await ClockCycles(dut.clk, H_TOTAL * V_BACK)
     # VSYNC should still be high after back porch
     assert dut.vsync.value == 1
+
+
+# ---------------------------------------------------------------------------
+# Golden model helpers for geometry / pixel shader
+# ---------------------------------------------------------------------------
+
+def decode_rgb_from_uo(val: int):
+    """
+    Decode 2-bit R,G,B from uo_out bit layout:
+      {hsync, B0, G0, R0, vsync, B1, G1, R1}
+    """
+    R = ((val >> 0) & 1) | (((val >> 4) & 1) << 1)
+    G = ((val >> 1) & 1) | (((val >> 5) & 1) << 1)
+    B = ((val >> 2) & 1) | (((val >> 6) & 1) << 1)
+    return R, G, B
+
+
+def golden_pixel_color(x_px: int, y_px: int, frame_cnt: int):
+    """
+    Software reimplementation of the black hole shader for one pixel.
+    Returns (R, G, B) as 2-bit ints each (0..3).
+    """
+
+    # ---------------------------------------------------------------
+    # Geometry: dx, dy and squared distances
+    # ---------------------------------------------------------------
+    dx = x_px - 320
+    dy = y_px - 240
+
+    dx_sq = dx * dx
+    dy_sq = dy * dy
+
+    r2_circ = dx_sq + dy_sq
+    r2_flat = dx_sq + (dy_sq << 4)  # *16
+
+    # ---------------------------------------------------------------
+    # Text logic: "UW"
+    # ---------------------------------------------------------------
+    # frame_cnt[8] decides between static and falling
+    if ((frame_cnt >> 8) & 1) == 1:
+        text_y_pos = 20 + (frame_cnt & 0xFF)
+    else:
+        text_y_pos = 20
+
+    in_text_y = (y_px >= text_y_pos) and (y_px < text_y_pos + 32)
+    diff_y = y_px - text_y_pos
+    rel_y = diff_y & 0x1F  # low 5 bits
+
+    # Letter U: X: 292-315
+    in_u_x = (x_px >= 292) and (x_px < 316)
+    u_rel_x = ((x_px & 0x1F) - 4)
+    draw_u = (
+        in_text_y
+        and in_u_x
+        and (u_rel_x < 4 or u_rel_x >= 20 or rel_y >= 28)
+    )
+
+    # Letter W: X: 324-347
+    in_w_x = (x_px >= 324) and (x_px < 348)
+    w_rel_x = ((x_px & 0x1F) - 4)
+    draw_w = (
+        in_text_y
+        and in_w_x
+        and (
+            w_rel_x < 4
+            or w_rel_x >= 20
+            or rel_y >= 28
+            or ((w_rel_x >= 10 and w_rel_x < 14) and (rel_y >= 16))
+        )
+    )
+
+    draw_text = draw_u or draw_w
+
+    # ---------------------------------------------------------------
+    # Texture logic for belt and halo
+    # ---------------------------------------------------------------
+    belt_tex_val = (((r2_flat >> 8) & 0xFF) - (frame_cnt & 0xFF)) & 0xFF
+    belt_gap = (belt_tex_val >> 4) & 1
+    belt_yellow = (belt_tex_val >> 2) & 1
+
+    halo_tex_val = (((r2_circ >> 6) & 0xFF) - (frame_cnt & 0xFF)) & 0xFF
+    halo_gap = (halo_tex_val >> 4) & 1
+    halo_yellow = (halo_tex_val >> 2) & 1
+
+    # ---------------------------------------------------------------
+    # Region flags
+    # ---------------------------------------------------------------
+    in_shadow = (r2_circ < SHADOW_R2)
+    in_belt = (r2_flat >= BELT_IN_R2) and (r2_flat <= BELT_OUT_R2)
+    in_halo = (r2_circ >= HALO_IN_R2) and (r2_circ <= HALO_OUT_R2)
+
+    belt_is_in_front = (dy > 4)
+
+    # ---------------------------------------------------------------
+    # Rendering logic (match Verilog priority)
+    # ---------------------------------------------------------------
+    # Default background: black
+    R = 0
+    G = 0
+    B = 0
+
+    # PRIORITY 1: Front belt (bottom half)
+    if in_belt and belt_is_in_front:
+        if belt_gap:
+            R, G, B = 1, 0, 0  # Very Dim Red Gap
+        elif belt_yellow:
+            R, G, B = 3, 2, 0  # Yellow/Orange Ring
+        else:
+            R, G, B = 3, 0, 0  # Bright Blood Red
+
+    # PRIORITY 2: Shadow
+    elif in_shadow:
+        R, G, B = 0, 0, 0  # Pure Black
+
+    # PRIORITY 3: Text
+    elif draw_text:
+        R, G, B = 3, 3, 3  # White Text
+
+    # PRIORITY 4: Back belt (top half)
+    elif in_belt:
+        if belt_gap:
+            R, G, B = 1, 0, 0
+        elif belt_yellow:
+            R, G, B = 3, 2, 0
+        else:
+            R, G, B = 3, 0, 0
+
+    # PRIORITY 5: Halo
+    elif in_halo:
+        if halo_gap:
+            R, G, B = 1, 0, 0
+        elif halo_yellow:
+            R, G, B = 3, 2, 0
+        else:
+            R, G, B = 3, 0, 0
+
+    # Else: background stays black
+
+    return R, G, B
+
+
+# ---------------------------------------------------------------------------
+# Strong geometry test: compare every visible pixel against golden model
+# ---------------------------------------------------------------------------
+
+@cocotb.test()
+async def test_blackhole_geometry_full_frame(dut):
+    """
+    Strong geometry test:
+    For every visible pixel in a frame, recompute the expected RGB
+    in Python and compare to the hardware output.
+    """
+    clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
+    cocotb.start_soon(clock.start())
+
+    await initialize_dut(dut)
+
+    # Let things run a bit so frame_cnt and the pipeline settle
+    await ClockCycles(dut.clk, H_TOTAL * 2)
+
+    num_cycles = H_TOTAL * V_TOTAL
+
+    mismatches = 0
+    checked = 0
+
+    for _ in range(num_cycles):
+        await ClockCycles(dut.clk, 1)
+
+        # Use top-level signals (wires) from tt_um_vga_example
+        x = int(dut.x_px.value)
+        y = int(dut.y_px.value)
+        active = int(dut.activevideo.value)
+
+        if not active:
+            continue
+
+        frame_cnt = int(dut.frame_cnt.value) & 0xFFFF
+
+        # Hardware RGB from packed uo_out
+        hw_R, hw_G, hw_B = decode_rgb_from_uo(int(dut.uo_out.value))
+
+        # Expected RGB from golden model
+        exp_R, exp_G, exp_B = golden_pixel_color(x, y, frame_cnt)
+
+        checked += 1
+        if (hw_R, hw_G, hw_B) != (exp_R, exp_G, exp_B):
+            mismatches += 1
+            if mismatches <= 10:
+                dut._log.error(
+                    f"Pixel mismatch at (x={x}, y={y}), frame_cnt={frame_cnt}: "
+                    f"HW R,G,B = {hw_R},{hw_G},{hw_B} vs "
+                    f"EXP R,G,B = {exp_R},{exp_G},{exp_B}"
+                )
+
+    assert mismatches == 0, f"Found {mismatches} pixel color mismatches out of {checked} checked"
