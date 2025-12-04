@@ -23,6 +23,7 @@ module tt_um_vga_example(
   wire activevideo;
   wire [9:0] x_px;
   wire [9:0] y_px;
+  reg  [15:0] frame_cnt;
 
   hvsync_generator hvsync_gen(
     .clk        (clk),
@@ -44,7 +45,6 @@ module tt_um_vga_example(
   // Animation Timer
   // -------------------------------------------------------
   // Extended to 16 bits
-  reg [15:0] frame_cnt;
   reg vsync_prev;
   
   always @(posedge clk) begin

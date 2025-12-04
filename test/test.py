@@ -47,7 +47,7 @@ async def initialize_dut(dut):
 @cocotb.test()
 async def test_hsync_timing(dut):
     """Verify HSYNC pulse width and period."""
-    clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
+    clock = Clock(dut.clk, 40, unit="ns")  # ~25 MHz
     cocotb.start_soon(clock.start())
 
     await initialize_dut(dut)
@@ -79,7 +79,7 @@ async def test_hsync_timing(dut):
 @cocotb.test()
 async def test_vsync_timing(dut):
     """Verify VSYNC pulse width at the expected line numbers."""
-    clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
+    clock = Clock(dut.clk, 40, unit="ns")  # ~25 MHz
     cocotb.start_soon(clock.start())
 
     await initialize_dut(dut)
@@ -108,12 +108,20 @@ async def test_vsync_timing(dut):
 
 def decode_rgb_from_uo(val: int):
     """
-    Decode 2-bit R,G,B from uo_out bit layout:
-      {hsync, B0, G0, R0, vsync, B1, G1, R1}
+    Decode 2-bit R,G,B from uo_out bit layout used in project.v:
+      {hsync, B_lsb, G_lsb, R_lsb, vsync, B_msb, G_msb, R_msb}
+    Note: channel MSBs reside in the lower-order bits of uo_out.
     """
-    R = ((val >> 0) & 1) | (((val >> 4) & 1) << 1)
-    G = ((val >> 1) & 1) | (((val >> 5) & 1) << 1)
-    B = ((val >> 2) & 1) | (((val >> 6) & 1) << 1)
+    r_msb = (val >> 0) & 1
+    r_lsb = (val >> 4) & 1
+    g_msb = (val >> 1) & 1
+    g_lsb = (val >> 5) & 1
+    b_msb = (val >> 2) & 1
+    b_lsb = (val >> 6) & 1
+
+    R = (r_msb << 1) | r_lsb
+    G = (g_msb << 1) | g_lsb
+    B = (b_msb << 1) | b_lsb
     return R, G, B
 
 
@@ -252,7 +260,7 @@ async def test_blackhole_geometry_full_frame(dut):
     For every visible pixel in a frame, recompute the expected RGB
     in Python and compare to the hardware output.
     """
-    clock = Clock(dut.clk, 40, units="ns")  # ~25 MHz
+    clock = Clock(dut.clk, 40, unit="ns")  # ~25 MHz
     cocotb.start_soon(clock.start())
 
     await initialize_dut(dut)
@@ -279,7 +287,14 @@ async def test_blackhole_geometry_full_frame(dut):
         frame_cnt = int(dut.frame_cnt.value) & 0xFFFF
 
         # Hardware RGB from packed uo_out
-        hw_R, hw_G, hw_B = decode_rgb_from_uo(int(dut.uo_out.value))
+        raw_uo = int(dut.uo_out.value)
+        # Log raw byte for the first few checked pixels to confirm packing
+        if checked < 20:
+            dut._log.info(
+                f"raw uo_out=0b{raw_uo:08b} x={x} y={y} frame={frame_cnt}"
+            )
+
+        hw_R, hw_G, hw_B = decode_rgb_from_uo(raw_uo)
 
         # Expected RGB from golden model
         exp_R, exp_G, exp_B = golden_pixel_color(x, y, frame_cnt)
@@ -287,10 +302,10 @@ async def test_blackhole_geometry_full_frame(dut):
         checked += 1
         if (hw_R, hw_G, hw_B) != (exp_R, exp_G, exp_B):
             mismatches += 1
-            if mismatches <= 10:
+            if mismatches <= 20:
                 dut._log.error(
                     f"Pixel mismatch at (x={x}, y={y}), frame_cnt={frame_cnt}: "
-                    f"HW R,G,B = {hw_R},{hw_G},{hw_B} vs "
+                    f"raw=0b{raw_uo:08b} HW R,G,B = {hw_R},{hw_G},{hw_B} vs "
                     f"EXP R,G,B = {exp_R},{exp_G},{exp_B}"
                 )
 
