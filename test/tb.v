@@ -26,9 +26,10 @@ module tb ();
   // Keep these signals from being optimized away so cocotb can observe them
   (* keep *) wire hsync;
   (* keep *) wire vsync;
-  (* keep *) wire display_on;
-  (* keep *) wire [9:0] hpos;
-  (* keep *) wire [9:0] vpos;
+  (* keep *) wire activevideo;
+  (* keep *) wire [9:0] x_px;
+  (* keep *) wire [9:0] y_px;
+  (* keep *) wire [15:0] frame_cnt;
 `ifdef GL_TEST
   wire VPWR = 1'b1;
   wire VGND = 1'b0;
@@ -55,12 +56,12 @@ module tb ();
 
   // Extract VGA timing signals from uo_out port
   // uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]}
-  assign hsync      = uo_out[7];
-  assign vsync      = uo_out[3];
-  // Note: activevideo, x_px, and y_px are not exposed as ports
-  // Set to 0 or remove from test.py if not needed
-  assign display_on = 1'b0;  // Not available from DUT ports
-  assign hpos       = 10'b0;  // Not available from DUT ports
-  assign vpos       = 10'b0;  // Not available from DUT ports
+  assign hsync       = uo_out[7];
+  assign vsync       = uo_out[3];
+  // Pull internal geometry signals directly from the DUT for cocotb checks
+  assign activevideo = user_project.activevideo;
+  assign x_px        = user_project.x_px;
+  assign y_px        = user_project.y_px;
+  assign frame_cnt   = user_project.frame_cnt;
 
 endmodule
